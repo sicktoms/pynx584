@@ -3,9 +3,9 @@ version: "3.2"
 services:
   pynx584:
     container_name: pynx584
-    image: kk7ds/pynx584
+    image: ghcr.io/kk7ds/pynx584
     devices:
-      - "/dev/alarm:/dev/alarm"    
+      - "/dev/ttyUSB0:/dev/ttyUSB0"
     volumes:
       - ./config:/config
     build:
