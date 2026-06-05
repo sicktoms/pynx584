@@ -189,3 +189,63 @@ class TestController(unittest.TestCase):
     def test_receive_binary(self):
         buf = self._test_receive(True)
         print('Test buffer is %r' % list(buf))
+
+    def test_zone_status_event_includes_bypass(self):
+        frame = mock.Mock(data=[0, 0, 0, 0, 0, 0b00000101])
+
+        self.ctrl.process_msg_4(frame)
+
+        event = self.ctrl.event_queue.get(0, timeout=0)[-1].payload
+        self.assertEqual(1, event['zone'])
+        self.assertTrue(event['zone_state'])
+        self.assertTrue(event['bypassed'])
+        self.assertIn('Bypass', event['zone_flags'])
+
+    def test_log_event_is_structured_and_updates_partition(self):
+        self.ctrl._get_zone(3).name = 'Kitchen'
+        frame = mock.Mock(data=[7, 20, 0, 2, 1, 6, 5, 14, 30])
+
+        self.ctrl.process_msg_10(frame)
+
+        event = self.ctrl.event_queue.get(0, timeout=0)[-1].payload
+        self.assertEqual('Zone 3 Alarm', event['event'])
+        self.assertEqual('Alarm', event['event_name'])
+        self.assertEqual(0, event['event_code'])
+        self.assertEqual('zone', event['target_type'])
+        self.assertEqual(3, event['zone'])
+        self.assertEqual('Kitchen', event['zone_name'])
+        self.assertEqual(1, event['partition'])
+        self.assertFalse(event['reportable'])
+
+        partition = self.ctrl.partitions[1]
+        self.assertEqual('Alarm', partition.last_alarm_event)
+        self.assertEqual(3, partition.last_alarm_zone)
+        self.assertEqual(event['timestamp'],
+                         partition.last_alarm_timestamp.isoformat())
+
+    def test_arming_clears_last_alarm(self):
+        partition = self.ctrl._get_partition(1)
+        partition.last_alarm_event = 'Alarm'
+        partition.last_alarm_zone = 3
+        partition.last_alarm_timestamp = mock.sentinel.timestamp
+        frame = mock.Mock(data=[0, 0b01000000, 0, 0, 0, 0, 0, 0])
+
+        self.ctrl.process_msg_6(frame)
+
+        self.assertIsNone(partition.last_alarm_event)
+        self.assertIsNone(partition.last_alarm_zone)
+        self.assertIsNone(partition.last_alarm_timestamp)
+
+    def test_non_zone_alarm_updates_partition_source(self):
+        frame = mock.Mock(data=[8, 20, 22, 0, 1, 6, 5, 14, 30])
+
+        self.ctrl.process_msg_10(frame)
+
+        event = self.ctrl.event_queue.get(0, timeout=0)[-1].payload
+        self.assertEqual('Panic', event['event_name'])
+        self.assertIsNone(event['target_type'])
+        self.assertIsNone(event['target'])
+
+        partition = self.ctrl.partitions[1]
+        self.assertEqual('Panic', partition.last_alarm_event)
+        self.assertIsNone(partition.last_alarm_zone)

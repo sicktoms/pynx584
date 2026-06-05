@@ -126,6 +126,9 @@ class Partition(object):
         self.number = number
         self.condition_flags = []
         self.last_user = None
+        self.last_alarm_event = None
+        self.last_alarm_zone = None
+        self.last_alarm_timestamp = None
 
     @property
     def armed(self):
@@ -175,6 +178,8 @@ class System(object):
 
 
 class LogEvent(object):
+    ALARM_EVENT_CODES = {0, 18, 19, 20, 22, 23}
+
     ZONE_EVENT_CODES = {
         0: 'Alarm',
         1: 'Alarm restore',
@@ -278,6 +283,20 @@ class LogEvent(object):
             return self.event
         return 'Unknown event %i for target %i' % (self.event_type,
                                                    self.zone_user_device)
+
+    @property
+    def target_type(self):
+        if self.event_type in self.ZONE_EVENT_CODES:
+            return 'zone'
+        if self.event_type in self.USER_EVENT_CODES:
+            return 'user'
+        if self.event_type in self.DEVICE_EVENT_CODES:
+            return 'device'
+        return None
+
+    @property
+    def is_alarm(self):
+        return self.event_type in self.ALARM_EVENT_CODES
 
 
 class User(object):

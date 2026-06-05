@@ -25,6 +25,11 @@ def show_partition(partition):
         'condition_flags': partition.condition_flags,
         'armed': 'Armed' in partition.condition_flags,
         'last_user': partition.last_user,
+        'last_alarm_event': partition.last_alarm_event,
+        'last_alarm_zone': partition.last_alarm_zone,
+        'last_alarm_timestamp': (
+            partition.last_alarm_timestamp.isoformat()
+            if partition.last_alarm_timestamp else None),
     }
 
 
@@ -90,6 +95,7 @@ def put_zone(zone):
         if want_bypass == zone.bypassed:
             flask.abort(409)
         CONTROLLER.zone_bypass_toggle(zone.number)
+        CONTROLLER.get_zone_status(zone.number)
     result = json.dumps(show_zone(zone))
     return flask.Response(result,
                           mimetype='application/json')
@@ -154,10 +160,14 @@ def put_user(user):
 def get_events():
     index = int(flask.request.args.get('index', 0))
     timeout = int(flask.request.args.get('timeout', 10))
+    if index > CONTROLLER.event_queue.current:
+        index = CONTROLLER.event_queue.current
     events = CONTROLLER.event_queue.get(index, timeout=timeout)
     if events:
         index = events[-1].number
         events = [event.payload for event in events]
+    else:
+        events = []
     return flask.Response(json.dumps({'events': events,
                                       'index': index}),
                           mimetype='application/json')
@@ -166,6 +176,6 @@ def get_events():
 @app.route('/version')
 def get_version():
     return flask.Response(json.dumps(
-        {'version': '1.2',
+        {'version': '1.3',
          'last_active': int(CONTROLLER.last_active)}),
                           mimetype='application/json')

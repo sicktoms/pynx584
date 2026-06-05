@@ -1,6 +1,9 @@
 NetworX NX584/NX8E Interface Library and Server
 ===============================================
 
+This fork extends the HTTP event API with structured bypass and alarm-source
+data for Home Assistant while preserving the existing event fields.
+
 .. image:: https://github.com/kk7ds/pynx584/actions/workflows/test.yaml/badge.svg
 
 This is a tool to let you interact with your NetworX alarm panel via
@@ -162,3 +165,36 @@ is a good start to what needs to be set and how:
  * Primary Keypad Function with PIN (OPTIONAL)
  * Secondary Keypad Function (OPTIONAL)
  * Zone Bypass Toggle (OPTIONAL)
+
+Event Stream
+------------
+
+The ``/events`` endpoint provides long-poll event updates. Zone status
+events include both the fault and bypass states::
+
+ {
+   "type": "zone_status",
+   "zone": 1,
+   "zone_state": false,
+   "bypassed": true,
+   "zone_flags": ["Bypass"]
+ }
+
+Alarm log events retain the legacy human-readable ``event`` field and
+also expose structured data suitable for automation clients::
+
+ {
+   "type": "log",
+   "event": "Zone 3 Alarm",
+   "event_name": "Alarm",
+   "event_code": 0,
+   "target_type": "zone",
+   "target": 3,
+   "zone": 3,
+   "zone_name": "Kitchen",
+   "partition": 1,
+   "reportable": true
+ }
+
+Zone status and log event transition messages must be enabled in the
+panel configuration for these events to be delivered immediately.

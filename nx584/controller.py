@@ -578,6 +578,7 @@ class NXController(object):
                  'timestamp': datetime.datetime.now().isoformat(),
                  'zone': zone.number,
                  'zone_state': zone.state,
+                 'bypassed': zone.bypassed,
                  'zone_flags': zone.condition_flags,
              }
         self.event_queue.push(event)
@@ -618,6 +619,10 @@ class NXController(object):
             LOG.info('Partition %i %s armed' % (
                 partition.number,
                 '' if partition.armed else 'not'))
+            if partition.armed:
+                partition.last_alarm_event = None
+                partition.last_alarm_zone = None
+                partition.last_alarm_timestamp = None
         LOG.debug('Partition %i %s' % (partition.number,
                                        partition.condition_flags))
         for ext in self.extensions:
@@ -752,8 +757,30 @@ class NXController(object):
                                           event.timestamp))
         _event = {'type': 'log',
                   'event': event.event_string,
+                  'event_name': event.event,
+                  'event_code': event.event_type,
+                  'target_type': event.target_type,
+                  'target': (event.zone_user_device
+                             if event.target_type else None),
+                  'partition': event.partition_number,
+                  'reportable': event.reportable,
+                  'log_number': event.number,
                   'timestamp': event.timestamp.isoformat(),
               }
+        if event.target_type:
+            _event[event.target_type] = event.zone_user_device
+        if event.target_type == 'zone':
+            zone = self.zones.get(event.zone_user_device)
+            _event['zone_name'] = zone.name if zone else None
+
+        if event.is_alarm and event.partition_number:
+            partition = self._get_partition(event.partition_number)
+            partition.last_alarm_event = event.event
+            partition.last_alarm_zone = (
+                event.zone_user_device
+                if event.target_type == 'zone' else None)
+            partition.last_alarm_timestamp = event.timestamp
+
         self.event_queue.push(_event)
         for ext in self.extensions:
             ext.obj.log_event(event)
